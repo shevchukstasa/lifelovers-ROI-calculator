@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LIFE LOVERS Bali - Investment Calculator</title>
+    
+    <!-- Стили загрузчика -->
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
+        #loader {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #fff; z-index: 9999;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #e2e8f0;
+            border-top: 4px solid #10b981; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Скрытие полосы прокрутки */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+
+    <!-- Библиотеки (CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="text-sm text-slate-500">Loading Calculator...</div>
+    </div>
+
+    <div id="root" style="display: none;"></div>
+
+    <script type="text/babel">
+        // Убираем загрузчик
+        setTimeout(() => {
+            const loader = document.getElementById('loader');
+            const root = document.getElementById('root');
+            if (loader) loader.style.display = 'none';
+            if (root) root.style.display = 'block';
+        }, 800);
+
+        const { useState, useEffect, useMemo } = React;
+        const RechartsObj = window.Recharts || window.recharts;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } = RechartsObj || {};
+
+        // --- ICONS ---
+        const Icons = {
+            TrendingUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>,
+            Home: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
+            Calculator: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg>,
+            DollarSign: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>,
+            Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        };
+
+        // --- DATA ---
+        const UNITS = [
+            { id: 'villa_adimahana', type: 'Villa', model: 'The ADIMAHANA', area: 120, category: '1-Storey Villas', price: 399000 },
+            { id: 'villa_akasa_130', type: 'Villa', model: 'The Akasa', area: 130, category: '2-Storey Villas', price: 365000 },
+            { id: 'villa_samudra', type: 'Villa', model: 'The SAMUDRA', area: 114, category: '2-Storey Villas', price: 339000 },
+            { id: 'villa_akasa_91', type: 'Villa', model: 'The Akasa (Small)', area: 91, category: '2-Storey Villas', price: 299000 },
+            { id: 'townhouse_90', type: 'Townhouse', model: 'The Akasa TH', area: 90, category: 'Townhouses', price: 249000 },
+            { id: 'townhouse_80', type: 'Townhouse', model: 'The Akasa TH', area: 80, category: 'Townhouses', price: 228000 },
+        ];
+
+        const GROWTH_DATA = {
+            stages: ['Closed Sales', 'Pre-Sale', 'Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'],
+            '2-Storey Villas': [3035, 3399, 3642, 3884, 4127, 4340, 4400],
+            '1-Storey Villas': [3285, 3679, 3942, 4204, 4467, 4697, 4763],
+            'Townhouses':      [2815, 3124, 3321, 3518, 3715, 3884, 3941],
+            'Appart':          [3050, 3385, 3599, 3812, 4026, 4209, 4270] 
+        };
+
+        const getAssignmentFee = (stageIdx) => 20000;
+
+        // --- COMPONENTS ---
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>
+                {children}
+            </div>
+        );
+
+        const MetricBox = ({ label, value, subtext, highlight = false, colorClass = "text-slate-800" }) => (
+            <div className={`p-4 rounded-xl border ${highlight ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-slate-100'}`}>
+                <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">{label}</div>
+                <div className={`text-2xl font-bold ${highlight ? 'text-emerald-700' : colorClass}`}>{value}</div>
+                {subtext && <div className="text-xs text-slate-400 mt-1">{subtext}</div>}
+            </div>
+        );
+
+        const Toggle = ({ options, value, onChange }) => (
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+                {options.map((opt) => (
+                <button
+                    key={opt.value}
+                    onClick={() => onChange(opt.value)}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                    value === opt.value
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    {opt.label}
+                </button>
+                ))}
+            </div>
+        );
+
+        // --- APP ---
+        function App() {
+            const [selectedUnitId, setSelectedUnitId] = useState('villa_akasa_130');
+            const [paymentType, setPaymentType] = useState('full');
+            const [activeTab, setActiveTab] = useState('combined');
+            const [exitStageIdx, setExitStageIdx] = useState(2);
+            const [rentalMode, setRentalMode] = useState('daily');
+            const [occupancy, setOccupancy] = useState(80);
+            const [holdingYears, setHoldingYears] = useState(5);
+
+            const selectedUnit = useMemo(() => UNITS.find(u => u.id === selectedUnitId) || UNITS[0], [selectedUnitId]);
+
+            const entryPrice = useMemo(() => {
+                if (paymentType === 'full') return selectedUnit.price * 0.95;
+                return selectedUnit.price;
+            }, [selectedUnit, paymentType]);
+
+            // CALCULATIONS
+            const rentalBaseMetrics = useMemo(() => {
+                const sizeRatio = selectedUnit.area / 130;
+                const dailyRate = 275 * sizeRatio;
+                const monthlyRate = 4900 * sizeRatio;
+                const grossIncome = rentalMode === 'daily' 
+                    ? dailyRate * 365 * (occupancy / 100) 
+                    : monthlyRate * 12 * (occupancy / 100);
+
+                const taxRate = 0.10;
+                const bookingRate = rentalMode === 'daily' ? 0.20 : 0.05; 
+                const managementRate = rentalMode === 'daily' ? 0.15 : 0.10;
+                const utilitiesCost = 4800 * sizeRatio;
+
+                const taxCost = grossIncome * taxRate;
+                const bookingCost = grossIncome * bookingRate;
+                const managementCost = grossIncome * managementRate;
+                
+                const totalExpenses = taxCost + bookingCost + managementCost + utilitiesCost;
+                const netIncome = grossIncome - totalExpenses;
+                
+                return { grossIncome, netIncome, totalExpenses, expenses: { tax: taxCost, booking: bookingCost, management: managementCost, utilities: utilitiesCost } };
+            }, [selectedUnit, rentalMode, occupancy]);
+
+            const resaleMetrics = useMemo(() => {
+                const growthCurve = GROWTH_DATA[selectedUnit.category] || GROWTH_DATA['Townhouses'];
+                const pricePerSqmAtExit = growthCurve[exitStageIdx];
+                const grossSalePrice = pricePerSqmAtExit * selectedUnit.area;
+                const assignmentFee = getAssignmentFee(exitStageIdx);
+                
+                const taxCost = grossSalePrice * 0.10;
+                const agentCost = grossSalePrice * 0.05;
+                const notaryCost = grossSalePrice * 0.01;
+                const totalExpenses = taxCost + agentCost + notaryCost + assignmentFee;
+                
+                const netProfit = (grossSalePrice - totalExpenses) - entryPrice;
+                const roi = (netProfit / entryPrice) * 100;
+                
+                const stageMonths = [0, 3, 12, 18, 24, 30, 36]; 
+                const years = Math.max((stageMonths[exitStageIdx] || 12) / 12, 0.5);
+
+                return { grossSalePrice, netProfit, roi, years, expenses: { total: totalExpenses } };
+            }, [selectedUnit, exitStageIdx, entryPrice]);
+
+            const combinedMetrics = useMemo(() => {
+                const constructionYears = 1.5;
+                const rentingYears = Math.max(0, holdingYears - constructionYears);
+                const totalGrossRental = rentalBaseMetrics.grossIncome * rentingYears;
+                const totalRentalExpenses = rentalBaseMetrics.totalExpenses * rentingYears;
+                const totalNetRental = totalGrossRental - totalRentalExpenses;
+
+                const growthCurve = GROWTH_DATA[selectedUnit.category] || GROWTH_DATA['Townhouses'];
+                const baseValue = growthCurve[6] * selectedUnit.area;
+                const exitMarketValue = baseValue * Math.pow(1.05, rentingYears);
+
+                const assignmentFee = 20000;
+                const exitTax = exitMarketValue * 0.10;
+                const exitAgent = exitMarketValue * 0.05;
+                const exitNotary = exitMarketValue * 0.01;
+                const totalExitExpenses = exitTax + exitAgent + exitNotary + assignmentFee;
+
+                const netExitProceeds = exitMarketValue - totalExitExpenses;
+                const totalNetProfit = (totalNetRental + netExitProceeds) - entryPrice;
+                const totalRoi = (totalNetProfit / entryPrice) * 100;
+                const annualizedRoi = totalRoi / holdingYears;
+
+                return {
+                    exitMarketValue, totalNetRental, totalNetProfit, totalRoi, annualizedRoi, rentingYears,
+                    totalRentalExpenses, totalGrossRental,
+                    exitExpenses: { total: totalExitExpenses, tax: exitTax, agent: exitAgent, notary: exitNotary, assignment: assignmentFee }
+                };
+            }, [selectedUnit, holdingYears, entryPrice, rentalBaseMetrics]);
+
+            const fmtMoney = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
+            const fmtPct = (val) => `${(val || 0).toFixed(2)}%`;
+
+            // Charts Data
+            const rentalPieData = [
+                { name: 'Net', value: rentalBaseMetrics.netIncome, fill: '#10b981' }, 
+                { name: 'Tax', value: rentalBaseMetrics.expenses.tax, fill: '#ef4444' }, 
+                { name: 'Fees', value: rentalBaseMetrics.expenses.booking + rentalBaseMetrics.expenses.management, fill: '#f97316' }, 
+                { name: 'Utils', value: rentalBaseMetrics.expenses.utilities, fill: '#84cc16' }, 
+            ].filter(d => d.value > 0);
+
+            const combinedBarData = [
+                { name: 'Invest', value: entryPrice, fill: '#94a3b8' },
+                { name: 'Rent', value: combinedMetrics.totalNetRental, fill: '#34d399' },
+                { name: 'Exit', value: combinedMetrics.netExitProceeds, fill: '#3b82f6' },
+            ];
+
+            // Render
+            return (
+                <div className="min-h-screen pb-12">
+                    {/* Header */}
+                    <div className="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-4 shadow-sm">
+                        <div className="max-w-6xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-emerald-600 text-white p-1.5 rounded-lg"><Icons.TrendingUp /></div>
+                                <span className="font-bold text-xl tracking-tight text-slate-900">LIFE LOVERS <span className="text-slate-400 font-normal">Bali</span></span>
+                            </div>
+                            <div className="hidden md:flex text-sm font-medium text-slate-500 gap-4">
+                                <button className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'resale' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50'}`} onClick={() => setActiveTab('resale')}>Strategy A: Flip</button>
+                                <button className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'rental' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50'}`} onClick={() => setActiveTab('rental')}>Strategy B: Rent</button>
+                                <button className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'combined' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50'}`} onClick={() => setActiveTab('combined')}>Strategy C: Combined</button>
+                            </div>
+                        </div>
+                        {/* Mobile Tabs */}
+                        <div className="md:hidden flex mt-4 gap-2 overflow-x-auto pb-1">
+                             <button className={`flex-1 whitespace-nowrap px-3 py-2 rounded text-xs font-bold border ${activeTab === 'resale' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200'}`} onClick={() => setActiveTab('resale')}>A: FLIP</button>
+                             <button className={`flex-1 whitespace-nowrap px-3 py-2 rounded text-xs font-bold border ${activeTab === 'rental' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200'}`} onClick={() => setActiveTab('rental')}>B: RENT</button>
+                             <button className={`flex-1 whitespace-nowrap px-3 py-2 rounded text-xs font-bold border ${activeTab === 'combined' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200'}`} onClick={() => setActiveTab('combined')}>C: COMBINED</button>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
+                        {/* Inputs */}
+                        <div className="lg:col-span-4 space-y-4">
+                            <Card className="p-5">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Unit</label>
+                                        <select className="w-full p-2 border rounded" value={selectedUnitId} onChange={(e) => setSelectedUnitId(e.target.value)}>
+                                            {UNITS.map(u => <option key={u.id} value={u.id}>{u.model} ({u.area}m²)</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Payment</label>
+                                        <Toggle options={[{ label: '100% Cash', value: 'full' }, { label: 'Installments', value: 'installment' }]} value={paymentType} onChange={setPaymentType} />
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2 border-t mt-2">
+                                        <span className="text-sm font-bold text-slate-500">Invest</span>
+                                        <span className="text-xl font-black text-emerald-600">{fmtMoney(entryPrice)}</span>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            <Card className="p-5">
+                                {activeTab === 'resale' && (
+                                    <div>
+                                        <div className="flex justify-between mb-2 text-sm font-bold"><span>Exit Stage</span><span className="text-emerald-600">{GROWTH_DATA.stages[exitStageIdx]}</span></div>
+                                        <input type="range" min="0" max="6" value={exitStageIdx} onChange={(e) => setExitStageIdx(Number(e.target.value))} className="w-full" />
+                                    </div>
+                                )}
+                                {(activeTab === 'rental' || activeTab === 'combined') && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Mode</label>
+                                            <Toggle options={[{ label: 'Daily', value: 'daily' }, { label: 'Monthly', value: 'monthly' }]} value={rentalMode} onChange={setRentalMode} />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between mb-1 text-sm font-bold"><span>Occupancy</span><span className="text-emerald-600">{occupancy}%</span></div>
+                                            <input type="range" min="50" max="100" step="5" value={occupancy} onChange={(e) => setOccupancy(Number(e.target.value))} className="w-full" />
+                                        </div>
+                                        {activeTab === 'combined' && (
+                                            <div className="pt-4 border-t">
+                                                <div className="flex justify-between mb-1 text-sm font-bold"><span>Holding Period</span><span className="text-emerald-600">{holdingYears} Years</span></div>
+                                                <input type="range" min="3" max="10" value={holdingYears} onChange={(e) => setHoldingYears(Number(e.target.value))} className="w-full" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+
+                        {/* Outputs */}
+                        <div className="lg:col-span-8 space-y-4">
+                            {/* KPI Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                                {activeTab === 'resale' && (
+                                    <>
+                                        <MetricBox label="Exit Price" value={fmtMoney(resaleMetrics.grossSalePrice)} />
+                                        <MetricBox label="Net Profit" value={fmtMoney(resaleMetrics.netProfit)} highlight />
+                                    </>
+                                )}
+                                {activeTab === 'rental' && (
+                                    <>
+                                        <MetricBox label="Annual Net" value={fmtMoney(rentalBaseMetrics.netIncome)} highlight />
+                                        <MetricBox label="Yield (ROI)" value={fmtPct((rentalBaseMetrics.netIncome / entryPrice) * 100)} highlight />
+                                    </>
+                                )}
+                                {activeTab === 'combined' && (
+                                    <>
+                                        <MetricBox label="Total Profit" value={fmtMoney(combinedMetrics.totalNetProfit)} highlight />
+                                        <MetricBox label="Annual ROI" value={fmtPct(combinedMetrics.annualizedRoi)} highlight />
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Chart */}
+                            <Card className="p-4 h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    {activeTab === 'resale' ? (
+                                        <BarChart data={[{ name: 'Invest', value: entryPrice }, { name: 'Exit', value: resaleMetrics.grossSalePrice }]}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" hide />
+                                            <Tooltip formatter={(val) => fmtMoney(val)} />
+                                            <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    ) : activeTab === 'rental' ? (
+                                        <PieChart>
+                                            <Pie data={rentalPieData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">
+                                                {rentalPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                                            </Pie>
+                                            <Tooltip formatter={(val) => fmtMoney(val)} />
+                                            <Legend verticalAlign="middle" align="right" layout="vertical" />
+                                        </PieChart>
+                                    ) : (
+                                        <BarChart data={combinedBarData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" tick={{fontSize: 12}} />
+                                            <Tooltip formatter={(val) => fmtMoney(val)} />
+                                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                                <Cell fill="#94a3b8" /><Cell fill="#34d399" /><Cell fill="#3b82f6" />
+                                            </Bar>
+                                        </BarChart>
+                                    )}
+                                </ResponsiveContainer>
+                            </Card>
+
+                            {/* ROI Box */}
+                            <Card className="p-6 text-center border-2 border-slate-100">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total ROI</div>
+                                <div className="text-5xl font-black text-slate-900">
+                                    {fmtPct(activeTab === 'resale' ? resaleMetrics.roi : activeTab === 'rental' ? (rentalBaseMetrics.netIncome / entryPrice) * 100 : combinedMetrics.totalRoi)}
+                                </div>
+                                <div className="text-sm text-emerald-600 font-bold mt-2">
+                                    {activeTab === 'combined' ? 'Total Return over ' + holdingYears + ' years' : activeTab === 'rental' ? 'Annual Yield' : 'Total Return on Flip'}
+                                </div>
+                            </Card>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
