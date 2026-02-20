@@ -5,91 +5,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LIFE LOVERS Bali - Investment Calculator</title>
     
-    <!-- Стили загрузчика -->
     <style>
         body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
-        #loader {
+        
+        #fallback-instruction {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: #fff; z-index: 9999;
+            background: #fff; z-index: 10000; padding: 20px; text-align: center;
+        }
+        .instruction-card {
+            background: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid #cbd5e1;
+            max-width: 400px; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
         .spinner {
             width: 40px; height: 40px; border: 4px solid #e2e8f0;
             border-top: 4px solid #10b981; border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 15px;
+            animation: spin 1s linear infinite; margin: 0 auto 20px auto;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Скрытие полосы прокрутки */
+
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        select optgroup { font-weight: bold; color: #10b981; font-style: normal; }
+        select option { color: #334155; font-weight: normal; }
     </style>
 
-    <!-- Библиотеки (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
 </head>
 <body class="bg-slate-50 text-slate-800">
 
-    <div id="loader">
-        <div class="spinner"></div>
-        <div class="text-sm text-slate-500">Loading Calculator...</div>
+    <div id="fallback-instruction">
+        <div class="instruction-card">
+            <div class="spinner"></div>
+            <h2 style="margin-bottom: 10px; font-size: 18px; color: #0f172a;">Loading Calculator...</h2>
+            <p style="font-size: 14px; color: #64748b; line-height: 1.5;">
+                If this screen stays for more than 3 seconds, you are viewing this in <b>Preview Mode</b>.
+            </p>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                <p style="font-weight: bold; margin-bottom: 5px;">⚠️ To use the calculator:</p>
+                <p style="font-size: 13px;">Tap the <b style="color: #0f172a;">Share/Menu</b> button and select <br> <b style="color: #10b981;">"Open in Browser"</b> (Chrome/Safari).</p>
+            </div>
+        </div>
     </div>
 
     <div id="root" style="display: none;"></div>
 
     <script type="text/babel">
-        // Убираем загрузчик
-        setTimeout(() => {
-            const loader = document.getElementById('loader');
+        function hideLoader() {
+            const loader = document.getElementById('fallback-instruction');
             const root = document.getElementById('root');
-            if (loader) loader.style.display = 'none';
-            if (root) root.style.display = 'block';
-        }, 800);
+            if (loader && root) {
+                loader.style.display = 'none';
+                root.style.display = 'block';
+            }
+        }
 
         const { useState, useEffect, useMemo } = React;
         const RechartsObj = window.Recharts || window.recharts;
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } = RechartsObj || {};
 
-        // --- ICONS ---
         const Icons = {
             TrendingUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>,
             Home: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
-            Calculator: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg>,
-            DollarSign: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>,
             Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
         };
 
-        // --- DATA ---
         const UNITS = [
-            { id: 'villa_adimahana', type: 'Villa', model: 'The ADIMAHANA', area: 120, category: '1-Storey Villas', price: 399000 },
-            { id: 'villa_akasa_130', type: 'Villa', model: 'The Akasa', area: 130, category: '2-Storey Villas', price: 365000 },
-            { id: 'villa_samudra', type: 'Villa', model: 'The SAMUDRA', area: 114, category: '2-Storey Villas', price: 339000 },
-            { id: 'villa_akasa_91', type: 'Villa', model: 'The Akasa (Small)', area: 91, category: '2-Storey Villas', price: 299000 },
-            { id: 'townhouse_90', type: 'Townhouse', model: 'The Akasa TH', area: 90, category: 'Townhouses', price: 249000 },
-            { id: 'townhouse_80', type: 'Townhouse', model: 'The Akasa TH', area: 80, category: 'Townhouses', price: 228000 },
+            // VILLAS
+            { id: 'villa_adimahana', type: 'Villas', model: 'The ADIMAHANA', area: 120, category: '1-Storey Villas', price: 399000, stage5Price: 578550, dailyRent: 253, monthlyRent: 4523 },
+            { id: 'villa_akasa_130', type: 'Villas', model: 'The Akasa', area: 130, category: '2-Storey Villas', price: 365000, stage5Price: 529250, dailyRent: 275, monthlyRent: 4900 },
+            { id: 'villa_samudra', type: 'Villas', model: 'The SAMUDRA', area: 114, category: '2-Storey Villas', price: 339000, stage5Price: 491550, dailyRent: 241, monthlyRent: 4296 },
+            { id: 'villa_akasa_91', type: 'Villas', model: 'The Akasa', area: 91, category: '2-Storey Villas', price: 299000, stage5Price: 433550, dailyRent: 192, monthlyRent: 3430 },
+            
+            // TOWNHOUSES
+            { id: 'townhouse_90', type: 'Townhouses', model: 'The Akasa', area: 90, category: 'Townhouses', price: 249000, stage5Price: 348600, dailyRent: 190, monthlyRent: 3392 },
+            { id: 'townhouse_80', type: 'Townhouses', model: 'The Akasa', area: 80, category: 'Townhouses', price: 228000, stage5Price: 319200, dailyRent: 169, monthlyRent: 3015 },
+            { id: 'townhouse_70', type: 'Townhouses', model: 'The Akasa', area: 70, category: 'Townhouses', price: 199000, stage5Price: 278600, dailyRent: 150, monthlyRent: 2600 },
+            
+            // APARTMENTS
+            { id: 'apart_59', type: 'Apartments', model: '2 BR Appart', area: 59, category: 'Appart', price: 179000, stage5Price: 250600, dailyRent: 150, monthlyRent: 2670 },
+            { id: 'apart_45', type: 'Apartments', model: '1 BR Appart', area: 45, category: 'Appart', price: 129000, stage5Price: 180600, dailyRent: 110, monthlyRent: 1900 },
+            { id: 'apart_33', type: 'Apartments', model: '1 BR Appart', area: 33, category: 'Appart', price: 99000, stage5Price: 138600, dailyRent: 85, monthlyRent: 1515 },
+            { id: 'apart_29', type: 'Apartments', model: 'Studio', area: 29, category: 'Appart', price: 85000, stage5Price: 119000, dailyRent: 70, monthlyRent: 1250 },
         ];
 
         const GROWTH_DATA = {
             stages: ['Closed Sales', 'Pre-Sale', 'Stage 1', 'Stage 2', 'Stage 3', 'Stage 4', 'Stage 5'],
-            '2-Storey Villas': [3035, 3399, 3642, 3884, 4127, 4340, 4400],
-            '1-Storey Villas': [3285, 3679, 3942, 4204, 4467, 4697, 4763],
-            'Townhouses':      [2815, 3124, 3321, 3518, 3715, 3884, 3941],
-            'Appart':          [3050, 3385, 3599, 3812, 4026, 4209, 4270] 
+            '2-Storey Villas': [3035, 3399.20, 3642, 3884.80, 4127.60, 4340.05, 4400.75],
+            '1-Storey Villas': [3285, 3679.20, 3942, 4204.80, 4467.60, 4697.55, 4763.25],
+            'Townhouses':      [2815, 3124.65, 3321.70, 3518.75, 3715.80, 3884.70, 3941],
+            'Appart':          [3050, 3385.50, 3599, 3812.50, 4026, 4209, 4270] 
         };
 
-        const getAssignmentFee = (stageIdx) => 20000;
+        const STAGE_MONTHS = [0, 3, 8, 12, 16, 20, 24];
 
-        // --- COMPONENTS ---
         const Card = ({ children, className = "" }) => (
-            <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>
-                {children}
-            </div>
+            <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>{children}</div>
         );
 
         const MetricBox = ({ label, value, subtext, highlight = false, colorClass = "text-slate-800" }) => (
@@ -104,13 +123,8 @@
             <div className="flex bg-slate-100 p-1 rounded-lg">
                 {options.map((opt) => (
                 <button
-                    key={opt.value}
-                    onClick={() => onChange(opt.value)}
-                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-                    value === opt.value
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    key={opt.value} onClick={() => onChange(opt.value)}
+                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${value === opt.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     {opt.label}
                 </button>
@@ -118,36 +132,109 @@
             </div>
         );
 
-        // --- APP ---
         function App() {
+            useEffect(() => {
+                hideLoader();
+            }, []);
+
             const [selectedUnitId, setSelectedUnitId] = useState('villa_akasa_130');
             const [paymentType, setPaymentType] = useState('full');
-            const [activeTab, setActiveTab] = useState('combined');
-            const [exitStageIdx, setExitStageIdx] = useState(2);
+            const [activeTab, setActiveTab] = useState('resale');
+            const [exitStageIdx, setExitStageIdx] = useState(3); 
             const [rentalMode, setRentalMode] = useState('daily');
             const [occupancy, setOccupancy] = useState(80);
-            const [holdingYears, setHoldingYears] = useState(5);
+            const [rentalYears, setRentalYears] = useState(5); 
 
             const selectedUnit = useMemo(() => UNITS.find(u => u.id === selectedUnitId) || UNITS[0], [selectedUnitId]);
 
-            const entryPrice = useMemo(() => {
-                if (paymentType === 'full') return selectedUnit.price * 0.95;
-                return selectedUnit.price;
-            }, [selectedUnit, paymentType]);
+            const calculatedPaidPct = useMemo(() => {
+                const currentMonth = STAGE_MONTHS[exitStageIdx];
+                const stage1Month = STAGE_MONTHS[2]; 
+                
+                if (currentMonth <= stage1Month) {
+                    return 0.30; 
+                }
+                if (currentMonth < stage1Month + 12) {
+                    const monthsPassedSinceStage1 = currentMonth - stage1Month;
+                    return 0.30 + 0.70 * (monthsPassedSinceStage1 / 12); 
+                }
+                return 1.00; 
+            }, [exitStageIdx]);
 
-            // CALCULATIONS
+            const entryCalculations = useMemo(() => {
+                const basePrice = selectedUnit.price;
+                const finalEntryPrice = paymentType === 'full' ? basePrice * 0.95 : basePrice;
+                
+                let paidCapital = finalEntryPrice;
+                if (paymentType === 'installment') {
+                    paidCapital = activeTab === 'resale' ? basePrice * calculatedPaidPct : basePrice;
+                }
+                
+                return { basePrice, finalEntryPrice, paidCapital };
+            }, [selectedUnit, paymentType, activeTab, calculatedPaidPct]);
+
+            const resaleMetrics = useMemo(() => {
+                const { finalEntryPrice, paidCapital } = entryCalculations;
+                
+                let grossSalePrice;
+                if (exitStageIdx === 2) {
+                    grossSalePrice = selectedUnit.price; 
+                } else if (exitStageIdx === 6) {
+                    grossSalePrice = selectedUnit.stage5Price; 
+                } else {
+                    const curve = GROWTH_DATA[selectedUnit.category] || GROWTH_DATA['Townhouses'];
+                    const progress = (curve[exitStageIdx] - curve[2]) / (curve[6] - curve[2]);
+                    grossSalePrice = selectedUnit.price + progress * (selectedUnit.stage5Price - selectedUnit.price);
+                }
+                
+                const grossProfit = grossSalePrice - finalEntryPrice;
+                const isInstallment = paymentType === 'installment';
+                // НОВАЯ ЛОГИКА 60/40: 40% Девелоперу, 60% Инвестору
+                const developerShare = isInstallment ? grossProfit * 0.40 : 0;
+                const investorGrossShare = isInstallment ? grossProfit * 0.60 : grossProfit;
+
+                const isEarlyExit = exitStageIdx < 6; 
+                
+                // РАСЧЕТ ДИНАМИЧЕСКОЙ КОМИССИИ ЗА ПЕРЕУСТУПКУ (Assignment Fee)
+                let assignmentFee = 0;
+                if (isEarlyExit) {
+                    let feeRate = 0.06; // По умолчанию 6% (для лотов >= 400k)
+                    if (grossSalePrice < 100000) feeRate = 0.10;
+                    else if (grossSalePrice < 200000) feeRate = 0.09;
+                    else if (grossSalePrice < 300000) feeRate = 0.08;
+                    else if (grossSalePrice < 400000) feeRate = 0.07;
+                    
+                    assignmentFee = Math.max(grossSalePrice * feeRate, 10000); // Минимум $10 000
+                }
+
+                const notaryRate = 0.01; 
+                const notaryCost = grossSalePrice * notaryRate;
+                const agentRate = isInstallment ? 0 : 0.05;
+                const agentCost = grossSalePrice * agentRate;
+
+                const totalExpenses = notaryCost + assignmentFee + agentCost;
+                const netProfit = investorGrossShare - totalExpenses;
+                
+                const roe = (netProfit / paidCapital) * 100;
+                const years = Math.max((STAGE_MONTHS[exitStageIdx] || 12) / 12, 0.5);
+                const annualizedRoe = roe / years;
+
+                return { 
+                    grossSalePrice, grossProfit, developerShare, investorGrossShare, netProfit, roe, annualizedRoe, years, 
+                    expenses: { notary: notaryCost, agent: agentCost, assignment: assignmentFee, total: totalExpenses } 
+                };
+            }, [selectedUnit, exitStageIdx, entryCalculations, paymentType]);
+
             const rentalBaseMetrics = useMemo(() => {
-                const sizeRatio = selectedUnit.area / 130;
-                const dailyRate = 275 * sizeRatio;
-                const monthlyRate = 4900 * sizeRatio;
+                const { finalEntryPrice } = entryCalculations;
                 const grossIncome = rentalMode === 'daily' 
-                    ? dailyRate * 365 * (occupancy / 100) 
-                    : monthlyRate * 12 * (occupancy / 100);
+                    ? selectedUnit.dailyRent * 365 * (occupancy / 100) 
+                    : selectedUnit.monthlyRent * 12 * (occupancy / 100);
 
                 const taxRate = 0.10;
-                const bookingRate = rentalMode === 'daily' ? 0.20 : 0.05; 
-                const managementRate = rentalMode === 'daily' ? 0.15 : 0.10;
-                const utilitiesCost = 4800 * sizeRatio;
+                const bookingRate = rentalMode === 'daily' ? 0.27 : 0.05; 
+                const managementRate = rentalMode === 'daily' ? 0.20 : 0.12;
+                const utilitiesCost = 4800 * (selectedUnit.area / 130); 
 
                 const taxCost = grossIncome * taxRate;
                 const bookingCost = grossIncome * bookingRate;
@@ -155,80 +242,75 @@
                 
                 const totalExpenses = taxCost + bookingCost + managementCost + utilitiesCost;
                 const netIncome = grossIncome - totalExpenses;
+                const yieldPct = (netIncome / finalEntryPrice) * 100;
                 
-                return { grossIncome, netIncome, totalExpenses, expenses: { tax: taxCost, booking: bookingCost, management: managementCost, utilities: utilitiesCost } };
-            }, [selectedUnit, rentalMode, occupancy]);
+                const paybackYears = (finalEntryPrice / netIncome) + 2;
 
-            const resaleMetrics = useMemo(() => {
-                const growthCurve = GROWTH_DATA[selectedUnit.category] || GROWTH_DATA['Townhouses'];
-                const pricePerSqmAtExit = growthCurve[exitStageIdx];
-                const grossSalePrice = pricePerSqmAtExit * selectedUnit.area;
-                const assignmentFee = getAssignmentFee(exitStageIdx);
-                
-                const taxCost = grossSalePrice * 0.10;
-                const agentCost = grossSalePrice * 0.05;
-                const notaryCost = grossSalePrice * 0.01;
-                const totalExpenses = taxCost + agentCost + notaryCost + assignmentFee;
-                
-                const netProfit = (grossSalePrice - totalExpenses) - entryPrice;
-                const roi = (netProfit / entryPrice) * 100;
-                
-                const stageMonths = [0, 3, 12, 18, 24, 30, 36]; 
-                const years = Math.max((stageMonths[exitStageIdx] || 12) / 12, 0.5);
-
-                return { grossSalePrice, netProfit, roi, years, expenses: { total: totalExpenses } };
-            }, [selectedUnit, exitStageIdx, entryPrice]);
+                return { 
+                    grossIncome, netIncome, totalExpenses, yieldPct, paybackYears,
+                    expenses: { tax: taxCost, booking: bookingCost, management: managementCost, utilities: utilitiesCost } 
+                };
+            }, [selectedUnit, rentalMode, occupancy, entryCalculations]);
 
             const combinedMetrics = useMemo(() => {
-                const constructionYears = 1.5;
-                const rentingYears = Math.max(0, holdingYears - constructionYears);
+                const { finalEntryPrice } = entryCalculations;
+                const constructionYears = 2; 
+                const rentingYears = rentalYears; 
+                
                 const totalGrossRental = rentalBaseMetrics.grossIncome * rentingYears;
                 const totalRentalExpenses = rentalBaseMetrics.totalExpenses * rentingYears;
                 const totalNetRental = totalGrossRental - totalRentalExpenses;
 
-                const growthCurve = GROWTH_DATA[selectedUnit.category] || GROWTH_DATA['Townhouses'];
-                const baseValue = growthCurve[6] * selectedUnit.area;
-                const exitMarketValue = baseValue * Math.pow(1.05, rentingYears);
+                const baseValueStage5 = selectedUnit.stage5Price;
+                const exitMarketValue = baseValueStage5 * Math.pow(1.05, rentingYears);
+                const grossSaleProfit = exitMarketValue - finalEntryPrice;
 
-                const assignmentFee = 20000;
                 const exitTax = exitMarketValue * 0.10;
                 const exitAgent = exitMarketValue * 0.05;
                 const exitNotary = exitMarketValue * 0.01;
-                const totalExitExpenses = exitTax + exitAgent + exitNotary + assignmentFee;
+                const totalSaleExpenses = exitTax + exitAgent + exitNotary;
 
-                const netExitProceeds = exitMarketValue - totalExitExpenses;
-                const totalNetProfit = (totalNetRental + netExitProceeds) - entryPrice;
-                const totalRoi = (totalNetProfit / entryPrice) * 100;
-                const annualizedRoi = totalRoi / holdingYears;
+                const netSaleProfit = grossSaleProfit - totalSaleExpenses;
+                const totalNetProfit = totalNetRental + netSaleProfit;
+                const totalRoi = (totalNetProfit / finalEntryPrice) * 100;
+                
+                const totalYears = constructionYears + rentingYears;
+                const annualizedRoi = totalRoi / totalYears;
 
                 return {
-                    exitMarketValue, totalNetRental, totalNetProfit, totalRoi, annualizedRoi, rentingYears,
+                    exitMarketValue, totalNetRental, netSaleProfit, totalNetProfit, totalRoi, annualizedRoi, rentingYears,
                     totalRentalExpenses, totalGrossRental,
-                    exitExpenses: { total: totalExitExpenses, tax: exitTax, agent: exitAgent, notary: exitNotary, assignment: assignmentFee }
+                    exitExpenses: { total: totalSaleExpenses, tax: exitTax, agent: exitAgent, notary: exitNotary }
                 };
-            }, [selectedUnit, holdingYears, entryPrice, rentalBaseMetrics]);
+            }, [selectedUnit, rentalYears, entryCalculations, rentalBaseMetrics]);
 
             const fmtMoney = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
             const fmtPct = (val) => `${(val || 0).toFixed(2)}%`;
 
-            // Charts Data
+            const categories = ['Villas', 'Townhouses', 'Apartments'];
+
             const rentalPieData = [
                 { name: 'Net', value: rentalBaseMetrics.netIncome, fill: '#10b981' }, 
                 { name: 'Tax', value: rentalBaseMetrics.expenses.tax, fill: '#ef4444' }, 
-                { name: 'Fees', value: rentalBaseMetrics.expenses.booking + rentalBaseMetrics.expenses.management, fill: '#f97316' }, 
+                { name: 'OTA & Mgmt', value: rentalBaseMetrics.expenses.booking + rentalBaseMetrics.expenses.management, fill: '#f97316' }, 
                 { name: 'Utils', value: rentalBaseMetrics.expenses.utilities, fill: '#84cc16' }, 
             ].filter(d => d.value > 0);
 
-            const combinedBarData = [
-                { name: 'Invest', value: entryPrice, fill: '#94a3b8' },
-                { name: 'Rent', value: combinedMetrics.totalNetRental, fill: '#34d399' },
-                { name: 'Exit', value: combinedMetrics.netExitProceeds, fill: '#3b82f6' },
+            const flipChartData = [
+                { name: 'Gross Profit', value: resaleMetrics.grossProfit, fill: '#60a5fa' },
+                ...(paymentType === 'installment' ? [{ name: 'Dev Share', value: resaleMetrics.developerShare, fill: '#f87171' }] : []),
+                { name: 'Fees', value: resaleMetrics.expenses.total, fill: '#fbbf24' },
+                { name: 'Net Profit', value: resaleMetrics.netProfit, fill: '#10b981' }
             ];
 
-            // Render
+            const combinedBarData = [
+                { name: 'Invested', value: entryCalculations.paidCapital, fill: '#94a3b8' },
+                { name: 'Total Rent', value: combinedMetrics.totalNetRental, fill: '#34d399' },
+                { name: 'Net Sale Prft', value: combinedMetrics.netSaleProfit, fill: '#3b82f6' },
+            ];
+
             return (
                 <div className="min-h-screen pb-12">
-                    {/* Header */}
                     <div className="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-4 shadow-sm">
                         <div className="max-w-6xl mx-auto flex justify-between items-center">
                             <div className="flex items-center gap-2">
@@ -241,7 +323,6 @@
                                 <button className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'combined' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50'}`} onClick={() => setActiveTab('combined')}>Strategy C: Combined</button>
                             </div>
                         </div>
-                        {/* Mobile Tabs */}
                         <div className="md:hidden flex mt-4 gap-2 overflow-x-auto pb-1">
                              <button className={`flex-1 whitespace-nowrap px-3 py-2 rounded text-xs font-bold border ${activeTab === 'resale' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200'}`} onClick={() => setActiveTab('resale')}>A: FLIP</button>
                              <button className={`flex-1 whitespace-nowrap px-3 py-2 rounded text-xs font-bold border ${activeTab === 'rental' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200'}`} onClick={() => setActiveTab('rental')}>B: RENT</button>
@@ -250,24 +331,66 @@
                     </div>
 
                     <div className="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
-                        {/* Inputs */}
                         <div className="lg:col-span-4 space-y-4">
                             <Card className="p-5">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Unit</label>
-                                        <select className="w-full p-2 border rounded" value={selectedUnitId} onChange={(e) => setSelectedUnitId(e.target.value)}>
-                                            {UNITS.map(u => <option key={u.id} value={u.id}>{u.model} ({u.area}m²)</option>)}
+                                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Select Unit</label>
+                                        <select 
+                                            className="w-full p-2.5 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50" 
+                                            value={selectedUnitId} 
+                                            onChange={(e) => setSelectedUnitId(e.target.value)}
+                                        >
+                                            {categories.map(category => (
+                                                <optgroup key={category} label={`— ${category.toUpperCase()} —`}>
+                                                    {UNITS.filter(u => u.type === category).map(u => (
+                                                        <option key={u.id} value={u.id}>
+                                                            {u.model} ({u.area}m²) - {fmtMoney(u.price)}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
                                         </select>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Payment</label>
-                                        <Toggle options={[{ label: '100% Cash', value: 'full' }, { label: 'Installments', value: 'installment' }]} value={paymentType} onChange={setPaymentType} />
+                                        <Toggle options={[{ label: '100% Cash (-5%)', value: 'full' }, { label: 'Installments', value: 'installment' }]} value={paymentType} onChange={setPaymentType} />
                                     </div>
-                                    <div className="flex justify-between items-center pt-2 border-t mt-2">
-                                        <span className="text-sm font-bold text-slate-500">Invest</span>
-                                        <span className="text-xl font-black text-emerald-600">{fmtMoney(entryPrice)}</span>
+                                    
+                                    <div className="pt-4 border-t border-slate-100 mt-2">
+                                        <div className="flex justify-between items-end mb-1">
+                                            <span className="text-sm font-bold text-slate-500">
+                                                {activeTab === 'resale' && paymentType === 'installment' ? 'Paid Capital (Equity)' : 'Total Investment'}
+                                            </span>
+                                            <span className="text-xl font-black text-emerald-600">{fmtMoney(entryCalculations.paidCapital)}</span>
+                                        </div>
+                                        
+                                        {paymentType === 'full' && (
+                                            <div className="text-right text-xs text-emerald-600 font-medium">
+                                                Includes 5% cash discount (Base: {fmtMoney(selectedUnit.price)})
+                                            </div>
+                                        )}
+                                        {paymentType === 'installment' && activeTab !== 'resale' && (
+                                            <div className="text-right text-xs text-slate-400 font-medium">
+                                                100% paid by completion
+                                            </div>
+                                        )}
                                     </div>
+
+                                    {paymentType === 'installment' && activeTab === 'resale' && (
+                                        <div className="pt-4 mt-2 border-t border-slate-100">
+                                            <div className="flex justify-between mb-1 text-sm font-bold">
+                                                <span className="text-slate-500">Paid by {GROWTH_DATA.stages[exitStageIdx]}</span>
+                                                <span className="text-emerald-600">{(calculatedPaidPct * 100).toFixed(1)}%</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-2">
+                                                <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${calculatedPaidPct * 100}%` }}></div>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 mt-1 leading-tight">
+                                                <strong className="text-slate-500">Schedule:</strong> 30% upfront. Remaining 70% paid in 12 monthly installments starting from Stage 1.
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </Card>
 
@@ -275,7 +398,15 @@
                                 {activeTab === 'resale' && (
                                     <div>
                                         <div className="flex justify-between mb-2 text-sm font-bold"><span>Exit Stage</span><span className="text-emerald-600">{GROWTH_DATA.stages[exitStageIdx]}</span></div>
-                                        <input type="range" min="0" max="6" value={exitStageIdx} onChange={(e) => setExitStageIdx(Number(e.target.value))} className="w-full" />
+                                        <input type="range" min="3" max="5" value={exitStageIdx} onChange={(e) => setExitStageIdx(Number(e.target.value))} className="w-full accent-emerald-600" />
+                                        <div className="flex justify-between mt-2 text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+                                            <span>Stage 2</span><span>Stage 3</span><span>Stage 4</span>
+                                        </div>
+                                        <div className="mt-4 text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                                            <strong>Flip Terms:</strong> {paymentType === 'installment' 
+                                                ? 'Exit during construction. Developer manages resale and takes 40% of Gross Profit.' 
+                                                : 'Exit during construction. You keep 100% of profit. 5% agent commission applies.'}
+                                        </div>
                                     </div>
                                 )}
                                 {(activeTab === 'rental' || activeTab === 'combined') && (
@@ -286,12 +417,13 @@
                                         </div>
                                         <div>
                                             <div className="flex justify-between mb-1 text-sm font-bold"><span>Occupancy</span><span className="text-emerald-600">{occupancy}%</span></div>
-                                            <input type="range" min="50" max="100" step="5" value={occupancy} onChange={(e) => setOccupancy(Number(e.target.value))} className="w-full" />
+                                            <input type="range" min="50" max="100" step="5" value={occupancy} onChange={(e) => setOccupancy(Number(e.target.value))} className="w-full accent-emerald-600" />
                                         </div>
                                         {activeTab === 'combined' && (
                                             <div className="pt-4 border-t">
-                                                <div className="flex justify-between mb-1 text-sm font-bold"><span>Holding Period</span><span className="text-emerald-600">{holdingYears} Years</span></div>
-                                                <input type="range" min="3" max="10" value={holdingYears} onChange={(e) => setHoldingYears(Number(e.target.value))} className="w-full" />
+                                                <div className="flex justify-between mb-1 text-sm font-bold"><span>Rental Years</span><span className="text-emerald-600">{rentalYears} Years</span></div>
+                                                <input type="range" min="3" max="10" value={rentalYears} onChange={(e) => setRentalYears(Number(e.target.value))} className="w-full accent-emerald-600" />
+                                                <div className="text-[10px] text-slate-400 mt-2">After 2 yrs construction. Capital grows 5% YoY.</div>
                                             </div>
                                         )}
                                     </div>
@@ -299,39 +431,44 @@
                             </Card>
                         </div>
 
-                        {/* Outputs */}
                         <div className="lg:col-span-8 space-y-4">
-                            {/* KPI Grid */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {activeTab === 'resale' && (
                                     <>
                                         <MetricBox label="Exit Price" value={fmtMoney(resaleMetrics.grossSalePrice)} />
-                                        <MetricBox label="Net Profit" value={fmtMoney(resaleMetrics.netProfit)} highlight />
+                                        <MetricBox label={paymentType === 'installment' ? "Investor's 60%" : "Gross Profit"} value={fmtMoney(resaleMetrics.investorGrossShare)} subtext="Before fees" />
+                                        <MetricBox label="Net Profit" value={fmtMoney(resaleMetrics.netProfit)} highlight subtext="After exit fees" />
+                                        <MetricBox label="Absolute ROE" value={fmtPct(resaleMetrics.roe)} highlight subtext="Return on Equity" />
                                     </>
                                 )}
                                 {activeTab === 'rental' && (
                                     <>
                                         <MetricBox label="Annual Net" value={fmtMoney(rentalBaseMetrics.netIncome)} highlight />
-                                        <MetricBox label="Yield (ROI)" value={fmtPct((rentalBaseMetrics.netIncome / entryPrice) * 100)} highlight />
+                                        <MetricBox label="OpEx & Tax" value={fmtMoney(rentalBaseMetrics.expenses.total)} colorClass="text-rose-600" />
+                                        <MetricBox label="Payback" value={`${rentalBaseMetrics.paybackYears.toFixed(1)} Yrs`} subtext="Inc. 2 yrs build" />
+                                        <MetricBox label="Yield" value={fmtPct(rentalBaseMetrics.yieldPct)} highlight subtext="Net Rental Yield" />
                                     </>
                                 )}
                                 {activeTab === 'combined' && (
                                     <>
-                                        <MetricBox label="Total Profit" value={fmtMoney(combinedMetrics.totalNetProfit)} highlight />
-                                        <MetricBox label="Annual ROI" value={fmtPct(combinedMetrics.annualizedRoi)} highlight />
+                                        <MetricBox label="Accum. Rent" value={fmtMoney(combinedMetrics.totalNetRental)} subtext={`Net for ${combinedMetrics.rentingYears} yrs`} />
+                                        <MetricBox label="Net Sale Profit" value={fmtMoney(combinedMetrics.netSaleProfit)} subtext="Capital Gain - Taxes" />
+                                        <MetricBox label="Total Net" value={fmtMoney(combinedMetrics.totalNetProfit)} highlight subtext="Rent + Sale Profit" />
+                                        <MetricBox label="Total ROI" value={fmtPct(combinedMetrics.totalRoi)} highlight subtext="Overall Return" />
                                     </>
                                 )}
                             </div>
 
-                            {/* Chart */}
                             <Card className="p-4 h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                     {activeTab === 'resale' ? (
-                                        <BarChart data={[{ name: 'Invest', value: entryPrice }, { name: 'Exit', value: resaleMetrics.grossSalePrice }]}>
+                                        <BarChart data={flipChartData}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="name" hide />
+                                            <XAxis dataKey="name" tick={{fontSize: 12}} />
                                             <Tooltip formatter={(val) => fmtMoney(val)} />
-                                            <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                                <Cell fill="#60a5fa" /><Cell fill="#f87171" /><Cell fill="#fbbf24" /><Cell fill="#10b981" />
+                                            </Bar>
                                         </BarChart>
                                     ) : activeTab === 'rental' ? (
                                         <PieChart>
@@ -347,21 +484,51 @@
                                             <XAxis dataKey="name" tick={{fontSize: 12}} />
                                             <Tooltip formatter={(val) => fmtMoney(val)} />
                                             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                                <Cell fill="#94a3b8" /><Cell fill="#34d399" /><Cell fill="#3b82f6" />
+                                                <Cell fill="#94a3b8" />
+                                                <Cell fill="#34d399" />
+                                                <Cell fill="#3b82f6" />
                                             </Bar>
                                         </BarChart>
                                     )}
                                 </ResponsiveContainer>
                             </Card>
 
-                            {/* ROI Box */}
-                            <Card className="p-6 text-center border-2 border-slate-100">
-                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total ROI</div>
-                                <div className="text-5xl font-black text-slate-900">
-                                    {fmtPct(activeTab === 'resale' ? resaleMetrics.roi : activeTab === 'rental' ? (rentalBaseMetrics.netIncome / entryPrice) * 100 : combinedMetrics.totalRoi)}
-                                </div>
-                                <div className="text-sm text-emerald-600 font-bold mt-2">
-                                    {activeTab === 'combined' ? 'Total Return over ' + holdingYears + ' years' : activeTab === 'rental' ? 'Annual Yield' : 'Total Return on Flip'}
+                            <Card className="p-6 border-2 border-slate-100 shadow-sm w-full">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                                    <div className="text-center md:text-left">
+                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                            {activeTab === 'rental' ? 'Annual Net Profit' : 'Total Net Profit'}
+                                        </div>
+                                        <div className="text-2xl font-bold text-emerald-600">
+                                            {fmtMoney(activeTab === 'resale' ? resaleMetrics.netProfit : activeTab === 'rental' ? rentalBaseMetrics.netIncome : combinedMetrics.totalNetProfit)}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-1 uppercase">
+                                            {activeTab === 'combined' ? `Over ${rentalYears + 2} Years` : activeTab === 'rental' ? 'Per Year' : 'Investor Share After Fees'}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="text-center border-y md:border-y-0 md:border-x border-slate-100 py-4 md:py-0 flex flex-col justify-center">
+                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                            {activeTab === 'resale' ? 'Absolute ROE' : activeTab === 'rental' ? 'Net Rental Yield' : 'Total ROI'}
+                                        </div>
+                                        <div className="text-5xl font-black text-slate-900 tracking-tight">
+                                            {fmtPct(activeTab === 'resale' ? resaleMetrics.roe : activeTab === 'rental' ? rentalBaseMetrics.yieldPct : combinedMetrics.totalRoi)}
+                                        </div>
+                                    </div>
+
+                                    <div className="text-center md:text-right">
+                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                            {activeTab === 'rental' ? 'Payback Period' : 'Annualized Rate (CAGR)'}
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-800">
+                                            {activeTab === 'resale' ? fmtPct(resaleMetrics.annualizedRoe) : 
+                                             activeTab === 'combined' ? fmtPct(combinedMetrics.annualizedRoi) : 
+                                             `${rentalBaseMetrics.paybackYears.toFixed(1)} Years`}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-1 uppercase">
+                                            {activeTab === 'rental' ? 'Inc. Construction Time' : 'Average per year'}
+                                        </div>
+                                    </div>
                                 </div>
                             </Card>
                         </div>
